@@ -38,15 +38,6 @@ for comp in comps:
     predictions = model.predict(features.astype(float))
     print(model.summary())
 
-# for comp in comps:
-#     features = tweets[comp].loc[:, df.columns != 'fav']
-#     target = tweets[comp].loc[:, df.column == 'fav']
-#     sm.OLS(target, features).fit()
-#     predictions = model.predict(features)
-#     model.summary()
-
-#print(tweets["wendys"].to_string())
-
 
 #tweet.
     #text
