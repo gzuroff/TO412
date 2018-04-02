@@ -10,6 +10,14 @@ import re
 import nltk
 from operator import itemgetter
 
+def getFollowers(api, username):
+    user = api.get_user(username)
+    return user.followers_count
+
+def getMention(tweet):
+    x = re.findall(r'@(\w+)', tweet)
+    return x[0]
+
 #Functions for neural net sentiment analysis
 def prepareSentence(s):
     stemmer = LancasterStemmer()
@@ -51,16 +59,9 @@ for comp in comps:
                 "followC": tweet.user.followers_count,
                 "sn": tweet.user.screen_name
             }, ignore_index=True)
-    #basic linear regression model
-    #TODO: sentiment score with neural net
+    #TODO: basic linear regression model
     df.loc[:,"sn"] = pd.Categorical(df.sn).codes
-    # df = df.loc[:,df.columns != "text"]
     tweets[comp] = df
-    # features = tweets[comp].loc[:, ["created", "re", "followC"]]
-    # target = tweets[comp].loc[:, df.columns == 'fav']
-    # model = smf.ols(formula = 'fav ~ created + re + followC', data = df.astype(float)).fit()
-    # predictions = model.predict(features.astype(float))
-    # print(model.summary())
 trainComps = ["jetblue", "innocent", "mlbgifs", "digiornopizza", "generalelectric", "charmin", "mit", "linkedinhelp"]
 trainData = {}
 
@@ -114,17 +115,21 @@ print("training nn")
 nnet = MLPRegressor(activation='relu', alpha=0.0001, hidden_layer_sizes=(int(len(final_words)*0.5),int(len(final_words)*0.25)),solver='adam', max_iter=400)
 nnet.fit(trainInputs, trainOutputs)
 print("Finished Training NN")
+#Add sentiment score to fast food comps dataframes
 for comp in comps:
-    tweets["sent"] = nnet.predict(inputs[comp])
-    print(tweets["sent"])
+    tweets[comp]["sent"] = nnet.predict(inputs[comp])
 
+#Parse tweets for info like @s, #s, pics, links
+ats = []
+atsFollowers = []
+punds = []
+pics = []
+links = []
 
+for comp in comps:
+    for index, tweet in tweets[comp].iterrows():
+        ats.append(1 if "@" in tweet['text'] else 0)
+        atsFollowers.append(
+            0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text']))
+        )
         
-#tweet.
-    #text
-    #created_at
-    #retwee_count
-    #favorite_count
-    #user.followers_count
-    #user.name.user.screen_name
-    #follower
