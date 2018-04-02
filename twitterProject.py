@@ -9,10 +9,14 @@ from nltk.corpus import stopwords
 import re
 import nltk
 from operator import itemgetter
+import pickle
 
 def getFollowers(api, username):
-    user = api.get_user(username)
-    return user.followers_count
+    try:
+        user = api.get_user(username)
+        return user.followers_count
+    except:
+        return 0
 
 def getMention(tweet):
     x = re.findall(r'@(\w+)', tweet)
@@ -57,8 +61,6 @@ except:
         compTweets = tweepy.Cursor(api.user_timeline, comp)
         for page in compTweets.pages():
             for tweet in page:
-                words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
-                #print(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""))
                 df = df.append({
                     "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
                     "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
@@ -78,25 +80,59 @@ trainData = {}
 try:
     print("trying to read top 8 comps tweets from CSV")
     for comp in trainComps:
-        f_in = comp = ".csv"
+        f_in = comp + ".csv"
         df = pd.read_csv(f_in)
         trainData[comp] = df
 except:
-        print("Fetching top 8 Comps tweets from API")
+    print("Fetching top 8 Comps tweets from API")
     for comp in trainComps:
         print("Fectching " + comp + "'s tweets")
         compTweets = tweepy.Cursor(api.user_timeline, comp)
         df = pd.DataFrame(columns = ["text", "re", "fav"])
         for page in compTweets.pages():
             for tweet in page:
-                words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
                 df = df.append({
                     "text": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
                     "re": tweet.retweet_count,
                     "fav": tweet.favorite_count
                 }, ignore_index=True)
         trainData[comp] = df
+        f_out = comp + ".csv"
+        trainData[comp].to_csv(f_out)
 print("All tweets collected")
+
+#Parse tweets for info like @s, #s links
+print("Parsing tweets for metadata")
+ats = []
+#atsFollowers = []
+pounds = []
+links = []
+
+for comp in comps:
+    print("Parsing " + comp)
+    for index, tweet in tweets[comp].iterrows():
+        words.extend(tweet["textClean"])
+        if "@" in tweet["text"]:
+            ats.append(1)
+            #atsFollowers.append(getFollowers(api, getMention(tweet["text"])))
+        else:
+            ats.append(0)
+            #atsFollowers.append(0)
+        #ats.append(1 if "@" in tweet['text'] else 0)
+        #atsFollowers.append(0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text'])))
+        pounds.append(1 if "#" in tweet['text'] else 0)
+        links.append(1 if len(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', tweet['text'])) > 0 else 0)
+    tweets[comp]["ats"] = ats
+    #tweets[comp]["atsFollowers"] = atsFollowers
+    tweets[comp]["pounds"] = pounds
+    tweets[comp]["links"] = links
+#Addd words from top 8 comps tweets to words list
+for comp in trainComps:
+    print("Parsing " + comp)
+    for index, tweet in trainData[comp].iterrows():
+        words.extend(prepareSentence(tweet["text"].rstrip().replace("\n", "").replace(",","").replace("\r","")))
+print("Finished parsing tweets",
+    "\nSarting BagOfWords")
 #Creating words for bag of words
 distinctWords = set(words)
 lower_threshold = 10
@@ -130,28 +166,19 @@ for comp in trainComps:
 
 trainOutputs = stats.zscore(trainOutputs)
 outputs = stats.zscore(outputs)
-print("training nn")
-nnet = MLPRegressor(activation='relu', alpha=0.0001, hidden_layer_sizes=(int(len(final_words)*0.5),int(len(final_words)*0.25)),solver='adam', max_iter=400)
-nnet.fit(trainInputs, trainOutputs)
-print("Finished Training NN")
+print("Finished BagOfWords")
+filename = 'finalized_model.sav'
+try:
+    print("Trying to load nnet")
+    nnet = pickle.load(open(filename, 'rb'))
+except:
+    print("training nn")
+    nnet = MLPRegressor(activation='relu', alpha=0.0001, hidden_layer_sizes=(int(len(final_words)*0.5),int(len(final_words)*0.25)),solver='adam', max_iter=400)
+    nnet.fit(trainInputs, trainOutputs)
+    pickle.dump(nnet, open(filename, 'wb'))
+    print("Finished Training NN")
 #Add sentiment score to fast food comps dataframes
+print("computing sentiment")
 for comp in comps:
     tweets[comp]["sent"] = nnet.predict(inputs[comp])
 
-#Parse tweets for info like @s, #s links
-print("Parsing tweets for metadata")
-ats = []
-atsFollowers = []
-pounds = []
-links = []
-
-for comp in comps:
-    for index, tweet in tweets[comp].iterrows():
-        ats.append(1 if "@" in tweet['text'] else 0)
-        atsFollowers.append(0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text'])))
-        pounds.append(1 if "#" in tweet['text'] else 0)
-        links.append(1 if len(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', tweet['text'])) > 0 else 0)
-    tweets[comp]["ats"] = ats
-    tweets[comp]["atsFollowers"] = atsFollowers
-    tweets[comp]["pounds"] = pounds
-    tweets[comp]["links"] = links
