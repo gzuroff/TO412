@@ -37,47 +37,66 @@ key = "Pfv5AqNYvf2dpTAqOiJLRXbsk"
 secret = "MZ8jQBF39lpukzQw0mCQ2xEIS1M1XdqZIl7V5MsevhspspIFQs"
 
 comps = ["wendys", "burgerking", "mcdonalds", "arbys"]
+trainComps = ["jetblue", "innocent", "mlbgifs", "digiornopizza", "generalelectric", "charmin", "mit", "linkedinhelp"]
 auth = tweepy.OAuthHandler(key, secret)
 api = tweepy.API(auth, wait_on_rate_limit = True, wait_on_rate_limit_notify = True)
 tweets = {}
 df = pd.DataFrame(columns = ["text", "created", "re", "fav", "followC", "sn"])
 words = []
-
-for comp in comps:
-    df = pd.DataFrame(columns = ["text", "created", "re", "fav", "followC", "sn"])
-    compTweets = tweepy.Cursor(api.user_timeline, comp)
-    for page in compTweets.pages():
-        for tweet in page:
-            words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
-            #print(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""))
-            df = df.append({
-                "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
-                "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
-                "created": tweet.created_at.hour,
-                "re": tweet.retweet_count,
-                "fav": tweet.favorite_count,
-                "followC": tweet.user.followers_count,
-                "sn": tweet.user.screen_name
-            }, ignore_index=True)
-    #TODO: basic linear regression model
-    df.loc[:,"sn"] = pd.Categorical(df.sn).codes
-    tweets[comp] = df
-trainComps = ["jetblue", "innocent", "mlbgifs", "digiornopizza", "generalelectric", "charmin", "mit", "linkedinhelp"]
+try:
+    print("trying to read comps CSVs")
+    for comp in comps:
+        f_in = comp + ".csv"
+        df = pd.read_csv(f_in)
+        tweets[comp] = df
+except:
+    print("Fetching Comps tweets from API")
+    for comp in comps:
+        print("Fectching " + comp + "'s tweets")
+        df = pd.DataFrame(columns = ["text", "created", "re", "fav", "followC", "sn", "pic"])
+        compTweets = tweepy.Cursor(api.user_timeline, comp)
+        for page in compTweets.pages():
+            for tweet in page:
+                words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
+                #print(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""))
+                df = df.append({
+                    "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
+                    "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
+                    "created": tweet.created_at.hour,
+                    "re": tweet.retweet_count,
+                    "fav": tweet.favorite_count,
+                    "followC": tweet.user.followers_count,
+                    "sn": tweet.user.screen_name,
+                    "pic": 1 if 'media' in tweet.entities else 0
+                }, ignore_index=True)
+        #TODO: basic linear regression model
+        df.loc[:,"sn"] = pd.Categorical(df.sn).codes
+        tweets[comp] = df
+        f_out = comp + ".csv"
+        tweets[comp].to_csv(f_out)
 trainData = {}
-
-for comp in trainComps:
-    compTweets = tweepy.Cursor(api.user_timeline, comp)
-    df = pd.DataFrame(columns = ["text", "re", "fav"])
-    for page in compTweets.pages():
-        for tweet in page:
-            words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
-            df = df.append({
-                "text": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
-                "re": tweet.retweet_count,
-                "fav": tweet.favorite_count
-            }, ignore_index=True)
-    trainData[comp] = df
-
+try:
+    print("trying to read top 8 comps tweets from CSV")
+    for comp in trainComps:
+        f_in = comp = ".csv"
+        df = pd.read_csv(f_in)
+        trainData[comp] = df
+except:
+        print("Fetching top 8 Comps tweets from API")
+    for comp in trainComps:
+        print("Fectching " + comp + "'s tweets")
+        compTweets = tweepy.Cursor(api.user_timeline, comp)
+        df = pd.DataFrame(columns = ["text", "re", "fav"])
+        for page in compTweets.pages():
+            for tweet in page:
+                words.extend(prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")))
+                df = df.append({
+                    "text": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
+                    "re": tweet.retweet_count,
+                    "fav": tweet.favorite_count
+                }, ignore_index=True)
+        trainData[comp] = df
+print("All tweets collected")
 #Creating words for bag of words
 distinctWords = set(words)
 lower_threshold = 10
@@ -119,17 +138,20 @@ print("Finished Training NN")
 for comp in comps:
     tweets[comp]["sent"] = nnet.predict(inputs[comp])
 
-#Parse tweets for info like @s, #s, pics, links
+#Parse tweets for info like @s, #s links
+print("Parsing tweets for metadata")
 ats = []
 atsFollowers = []
-punds = []
-pics = []
+pounds = []
 links = []
 
 for comp in comps:
     for index, tweet in tweets[comp].iterrows():
         ats.append(1 if "@" in tweet['text'] else 0)
-        atsFollowers.append(
-            0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text']))
-        )
-        
+        atsFollowers.append(0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text'])))
+        pounds.append(1 if "#" in tweet['text'] else 0)
+        links.append(1 if len(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', tweet['text'])) > 0 else 0)
+    tweets[comp]["ats"] = ats
+    tweets[comp]["atsFollowers"] = atsFollowers
+    tweets[comp]["pounds"] = pounds
+    tweets[comp]["links"] = links
