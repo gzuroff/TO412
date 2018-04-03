@@ -103,12 +103,11 @@ print("All tweets collected")
 
 #Parse tweets for info like @s, #s links
 print("Parsing tweets for metadata")
-ats = []
-#atsFollowers = []
-pounds = []
-links = []
 
 for comp in comps:
+    ats = []
+    pounds = []
+    links = []
     print("Parsing " + comp)
     for index, tweet in tweets[comp].iterrows():
         words.extend(tweet["textClean"])
@@ -118,8 +117,6 @@ for comp in comps:
         else:
             ats.append(0)
             #atsFollowers.append(0)
-        #ats.append(1 if "@" in tweet['text'] else 0)
-        #atsFollowers.append(0 if "@" not in tweet['text'] else getFollowers(api, getMention(tweet['text'])))
         pounds.append(1 if "#" in tweet['text'] else 0)
         links.append(1 if len(re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', tweet['text'])) > 0 else 0)
     tweets[comp]["ats"] = ats
@@ -163,9 +160,9 @@ for comp in trainComps:
         trainInputs.append(bag)
         score = row["fav"] + row["re"]
         trainOutputs.append(score)
-
 trainOutputs = stats.zscore(trainOutputs)
-outputs = stats.zscore(outputs)
+for comp in comps:
+    outputs[comp] = stats.zscore(outputs[comp])
 print("Finished BagOfWords")
 filename = 'finalized_model.sav'
 try:
