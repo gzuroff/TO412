@@ -10,6 +10,10 @@ import re
 import nltk
 from operator import itemgetter
 import pickle
+from textblob import TextBlob
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+analyzer = SentimentIntensityAnalyzer()
+
 
 def getFollowers(api, username):
     try:
@@ -30,7 +34,7 @@ def prepareSentence(s):
     s = re.sub('[^A-Za-z ]+', '', s)
     words = nltk.word_tokenize(s.lower())
     return [stemmer.stem(w.lower()) for w in words if w not in ignore_words]
-#Converts sentence to bag of words
+#Converts sentence to bag of words, represents each word as a 1 if it is present in the tweet, 0 if not
 def toBOW(sentance, words):
     bag = []
     for word in words:
@@ -57,10 +61,11 @@ except:
     print("Fetching Comps tweets from API")
     for comp in comps:
         print("Fectching " + comp + "'s tweets")
-        df = pd.DataFrame(columns = ["text", "created", "re", "fav", "followC", "sn", "pic"])
+        df = pd.DataFrame(columns = ["text", "created", "re", "fav", "followC", "sn", "pic", "polarity", "subjectivity", "analyzer"])
         compTweets = tweepy.Cursor(api.user_timeline, comp)
         for page in compTweets.pages():
             for tweet in page:
+                analysis = TextBlob(tweet.text)
                 df = df.append({
                     "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
                     "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
@@ -69,7 +74,10 @@ except:
                     "fav": tweet.favorite_count,
                     "followC": tweet.user.followers_count,
                     "sn": tweet.user.screen_name,
-                    "pic": 1 if 'media' in tweet.entities else 0
+                    "pic": 1 if 'media' in tweet.entities else 0,
+                    "polarity": analysis.sentiment.polarity,
+                    "subjectivity": analysis.sentiment.subjectivity,
+                    "analyzer": analyzer.polarity_scores(tweet.text)["compound"]
                 }, ignore_index=True)
         #TODO: basic linear regression model
         df.loc[:,"sn"] = pd.Categorical(df.sn).codes
