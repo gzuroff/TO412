@@ -12,8 +12,11 @@ from operator import itemgetter
 import pickle
 from textblob import TextBlob
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import datetime as dt
 analyzer = SentimentIntensityAnalyzer()
 
+checkFor = ["McDonalds", "BurgerKing", "Arbys", "tacobell", "kfc", "DennysDiner", "Subway", "Wendys"]
+checkFor = [x.lower() for x in checkFor]
 
 def getFollowers(api, username):
     try:
@@ -24,7 +27,7 @@ def getFollowers(api, username):
 
 def getMention(tweet):
     x = re.findall(r'@(\w+)', tweet)
-    return x[0]
+    return 1 if x[0].lower() in checkFor else 0
 
 #Functions for neural net sentiment analysis
 def prepareSentence(s):
@@ -70,14 +73,18 @@ except:
                     "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
                     "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
                     "created": tweet.created_at.hour,
+                    "week": pd.to_datetime(tweet.created_at).week,
+                    "year": tweet.created_at.year,
                     "re": tweet.retweet_count,
                     "fav": tweet.favorite_count,
                     "followC": tweet.user.followers_count,
+                    "inReply": 1 if tweet.in_reply_to_status_id is not None else 0,
                     "sn": tweet.user.screen_name,
                     "pic": 1 if 'media' in tweet.entities else 0,
                     "polarity": analysis.sentiment.polarity,
                     "subjectivity": analysis.sentiment.subjectivity,
-                    "analyzer": analyzer.polarity_scores(tweet.text)["compound"]
+                    "analyzer": analyzer.polarity_scores(tweet.text)["compound"],
+                    "atCompany": getMention(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")) if "@" in tweet.text is not None else 0
                 }, ignore_index=True)
         #TODO: basic linear regression model
         df.loc[:,"sn"] = pd.Categorical(df.sn).codes
@@ -186,4 +193,6 @@ except:
 print("computing sentiment")
 for comp in comps:
     tweets[comp]["sent"] = nnet.predict(inputs[comp])
+    f_out = comp + ".csv"
+    tweets[comp].to_csv(f_out)
 
