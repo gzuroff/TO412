@@ -73,6 +73,7 @@ except:
                     "text": tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r",""),
                     "textClean": prepareSentence(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")),
                     "created": tweet.created_at.hour,
+                    "date": tweet.created_at,
                     "week": pd.to_datetime(tweet.created_at).week,
                     "year": tweet.created_at.year,
                     "re": tweet.retweet_count,
@@ -87,7 +88,7 @@ except:
                     "atCompany": getMention(tweet.text.rstrip().replace("\n", "").replace(",","").replace("\r","")) if "@" in tweet.text is not None else 0
                 }, ignore_index=True)
         #TODO: basic linear regression model
-        df.loc[:,"sn"] = pd.Categorical(df.sn).codes
+        #df.loc[:,"sn"] = pd.Categorical(df.sn).codes
         tweets[comp] = df
         f_out = comp + ".csv"
         tweets[comp].to_csv(f_out)
