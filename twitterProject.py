@@ -165,7 +165,7 @@ for comp in comps:
     for index, row in tweets[comp].iterrows():
         bag = toBOW(row["textClean"], final_words)
         iputs.append(bag)
-        score = row["fav"] + row["re"]
+        score = row["fav"] + (2 * row["re"])
         oputs.append(score)
     inputs[comp] = iputs
     outputs[comp] = oputs
@@ -173,7 +173,7 @@ for comp in trainComps:
     for index, row in trainData[comp].iterrows():
         bag = toBOW(row["text"], final_words)
         trainInputs.append(bag)
-        score = row["fav"] + row["re"]
+        score = row["fav"] + (2 * row["re"])
         trainOutputs.append(score)
 trainOutputs = stats.zscore(trainOutputs)
 for comp in comps:
