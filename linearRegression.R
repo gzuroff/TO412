@@ -10,7 +10,7 @@ wendys = rbind(wendys, arbys, mcD, bk)
 wendys = wendys[,c(-1,-2,-3)]
 wendys$tot = (wendys$re * 3) + wendys$fav
 wendys = wendys[,c(-1, -14)]
-linearModel = lm(tot ~ created + followC + sn + pic + polarity + subjectivity + analyzer + atCompany + inReply + ats + pounds + links + sent + google, data = wendys )
+linearModel = lm(tot ~ created + followC + sn + pic + sn:pic + polarity + sn:polarity + subjectivity + sn:polarity + analyzer + sn:analyzer + atCompany + sn:atCompany + inReply +  sn:inReply + ats + sn:ats + pounds + links + sent + sn:sent + google + sn:google, data = wendys )
 linearModel2 = step(linearModel, direction = "backward")
 summary(linearModel2)
 coefs = as.data.frame(coef(linearModel2))
